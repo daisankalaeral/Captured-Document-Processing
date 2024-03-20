@@ -4,7 +4,42 @@ import numpy as np
 import os
 from random import random
 from utils import appx_best_fit_ngon
+from scipy.interpolate import interp1d
 import utils
+
+def interpolate_points(points, n, cornerIndex):
+    cornerIndex = sorted(cornerIndex)
+    n_corners = len(cornerIndex)
+    
+    result = []
+
+    for i in range(n_corners):
+        next_idx = (i + 1) % n_corners
+        if not next_idx:
+            line = points[cornerIndex[i]:]
+            temp = points[:cornerIndex[0]]
+            print(line.shape, temp.shape)
+            line = np.append(line, temp, axis=0)
+        else:
+            line = points[cornerIndex[i]:cornerIndex[next_idx]]
+        print(line)
+
+        line = [x[0] for x in line]
+
+        line = np.stack(line)
+
+        t = np.linspace(0, 1, len(line))
+
+        fx = interp1d(t, line[:, 0], kind='nearest')
+        fy = interp1d(t, line[:, 1], kind='nearest')
+
+        t_new = np.linspace(0, 1, n)
+
+        new_points = np.column_stack((fx(t_new), fy(t_new))).astype(int)
+        result.append(new_points[:-1])
+
+    return result
+
 rand_int = int(random()*1000)
 dir_path = "img/1"
 
@@ -34,23 +69,52 @@ for file in files:
     epsilon = 0.02*cv2.arcLength(cnt, True)
     approx = cv2.approxPolyDP(cnt, epsilon, True)
     if len(approx) == 4:
-        continue
-
-    max_quad = utils.max_area_quad(approx)
-    print(max_quad)
+        max_quad = approx
+    else:
+        max_quad = utils.max_area_quad(approx)
 
     # Draw
-    black_image = np.zeros(image.shape, dtype=np.uint8)
-
     for corner in max_quad:
-        cv2.circle(image, tuple(corner[0]), 10, (255,0,0), -1)
+        cv2.circle(image, tuple(corner[0]), 2, (255,255,255), 2)
+    
+    contourList = cnt.tolist()
+    cornerIndex = []
+    for corner in max_quad:
+        cornerIndex.append(contourList.index(corner.tolist()))
+    
+    result = interpolate_points(cnt, 21, cornerIndex)
+    
+    color = {
+        0: (255, 0, 0),
+        1: (0, 255, 0),
+        2: (0, 0, 255),
+        3: (255, 255, 0)
+    }
+    mask_image = cv2.cvtColor(mask_image, cv2.COLOR_GRAY2RGB)
+    for i, line in enumerate(result):
+        # line = np.expand_dims(line, 1)
+        # print(line.shape)
+        l = len(line)
+        for j, point in enumerate(line):
+            next_j = (j + 1) % l
+            if next_j == 0:
+                cv2.circle(image, tuple(point), 1, color[i], 1)
+                cv2.circle(mask_image, tuple(point), 1, color[i], 1)
+            else:
+                cv2.line(image, tuple(point), tuple(line[next_j]), color[i], 1)
+                cv2.line(mask_image, tuple(point), tuple(line[next_j]), color[i], 1)
+            # cv2.circle(image, tuple(point), 2, color[i], 2)
+        # cv2.drawContours(image, line, -1, color[i], 2)
 
-    cv2.drawContours(image, cnt, -1, (0,255,0), 2)
+    black_image = np.zeros(image.shape, dtype=np.uint8)
+    cv2.drawContours(black_image, cnt, -1, (255, 255, 255), 1)
 
-    plt.subplot(121)
+    plt.subplot(131)
     plt.imshow(image)
-    plt.subplot(122)
+    plt.subplot(132)
     plt.imshow(mask_image, cmap="gray")
+    plt.subplot(133)
+    plt.imshow(black_image, cmap="gray")
 
     # print(filepath)
     # print(mask_image_path)
@@ -68,28 +132,3 @@ for file in files:
     # plt.imshow(mask)
     plt.show()
     # break
-
-
-    # # Find contours
-    # black_image = np.zeros(image.shape, dtype=np.uint8)
-    # contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-    # cnt = max(contours, key=cv2.contourArea)
-
-    # # Apply the Douglas-Peucker algorithm
-    # epsilon = 0.02*cv2.arcLength(cnt, True)
-    # approx = cv2.approxPolyDP(cnt, epsilon, True)
-
-    # # Draw
-    # for corner in approx:
-    #     cv2.circle(black_image, tuple(corner[0]), 10, (255,255,255), -1)
-    # output = cv2.drawContours(black_image, contours, -1, (255,255,255), 2)
-    
-    # plt.figure()
-    # plt.subplot(211)
-    # plt.imshow(black_image, cmap="gray")
-    
-    # plt.subplot(212)
-    # plt.imshow(image)
-
-    # plt.show()
