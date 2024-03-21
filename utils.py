@@ -110,3 +110,15 @@ def max_area_quad(points):
             max_quad = quad
 
     return max_quad
+
+def combine(img1, img2, mask):
+    mask = cv2.cvtColor(mask, cv2.COLOR_GRAY2RGB)
+    mask = mask/255
+    inverse_mask = 1 - mask
+
+    img2 = cv2.resize(img2, (img1.shape[1], img1.shape[0]))
+    masked_img1 = (img1*mask).astype(np.uint8)
+    masked_img2 = (img2*inverse_mask).astype(np.uint8)
+    result = cv2.add(masked_img1, masked_img2)
+
+    return result
